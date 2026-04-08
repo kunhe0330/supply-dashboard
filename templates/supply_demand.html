@@ -241,9 +241,10 @@ tbody td { padding: 10px 14px; white-space: nowrap; }
             <div class="label">기관 순매수 (최근일)</div>
             <div class="value">-</div>
         </div>
-        <div class="summary-card yellow" id="cardDual">
-            <div class="label">🔥 쌍끌이 종목 수</div>
+        <div class="summary-card yellow" id="cardDual" style="cursor:pointer;" onclick="document.querySelector('[data-align=dual_buy]').click(); document.getElementById('alignBody').scrollIntoView({behavior:'smooth', block:'center'});">
+            <div class="label">🔥 쌍끌이 종목 수 <span style="color:#667788;">(클릭)</span></div>
             <div class="value">-</div>
+            <div class="sub">외인+기관 동시 순매수 (최근일)</div>
         </div>
     </div>
 
@@ -274,10 +275,38 @@ tbody td { padding: 10px 14px; white-space: nowrap; }
     <div class="section-title">🔄 수급 전환 신호 <span class="sub">— 최근 3일 매수 전환 종목</span></div>
     <div id="reversalSection" class="reversal-grid"></div>
 
-    <!-- ❺ 외인/기관 TOP 10 -->
+    <!-- ❺ 외인-기관 동조/엇갈림 -->
+    <div class="section-title">
+        🔥 외인-기관 동조 / ⚡ 엇갈림
+        <span class="sub">— 외인과 기관이 같은 방향인지, 반대 방향인지</span>
+    </div>
+    <div class="tabs">
+        <button class="tab-btn active" data-align="dual_buy" onclick="switchAlign('dual_buy', this)">🔥 쌍끌이 매수</button>
+        <button class="tab-btn" data-align="dual_sell" onclick="switchAlign('dual_sell', this)">❄️ 쌍끌이 매도</button>
+        <button class="tab-btn" data-align="diverge" onclick="switchAlign('diverge', this)">⚡ 엇갈림</button>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>종목</th>
+                    <th>섹터</th>
+                    <th>외인 (억)</th>
+                    <th>기관 (억)</th>
+                    <th>합계 (억)</th>
+                    <th>구분</th>
+                </tr>
+            </thead>
+            <tbody id="alignBody"></tbody>
+        </table>
+    </div>
+
+    <!-- ❻ 투자자별 TOP 10 -->
     <div class="section-title">투자자별 TOP 10</div>
     <div class="tabs">
-        <button class="tab-btn active" data-top="foreign" onclick="switchTop('foreign', this)">👤 외인 순매수</button>
+        <button class="tab-btn active" data-top="combined" onclick="switchTop('combined', this)">🔥 외인+기관 합산</button>
+        <button class="tab-btn" data-top="foreign" onclick="switchTop('foreign', this)">👤 외인 순매수</button>
         <button class="tab-btn" data-top="institution" onclick="switchTop('institution', this)">🏛 기관 순매수</button>
     </div>
     <div class="table-wrap">
@@ -306,7 +335,8 @@ tbody td { padding: 10px 14px; white-space: nowrap; }
 // ── 전역 상태 ──────────────────────
 let currentDays = 20;
 let currentMarket = "all";
-let currentTop = "foreign";
+let currentTop = "combined";
+let currentAlign = "dual_buy";
 let lastData = null;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -390,6 +420,9 @@ function render(d) {
 
     // 수급 전환
     renderReversals(d.flow_reversals || []);
+
+    // 외인-기관 동조
+    renderAlign(d);
 
     // 투자자별 TOP
     renderTop(d);
@@ -511,13 +544,62 @@ function renderReversals(list) {
 
 function switchTop(type, btn) {
     currentTop = type;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     if (lastData) renderTop(lastData);
 }
 
+function switchAlign(type, btn) {
+    currentAlign = type;
+    btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (lastData) renderAlign(lastData);
+}
+
+function renderAlign(d) {
+    const all = d.investor_alignment || [];
+    let filtered;
+    if (currentAlign === 'dual_buy') {
+        filtered = all.filter(x => x.alignment === '쌍끌이 매수');
+    } else if (currentAlign === 'dual_sell') {
+        filtered = all.filter(x => x.alignment === '쌍끌이 매도');
+    } else {
+        filtered = all.filter(x => x.alignment.includes('↑') || x.alignment.includes('↓'));
+    }
+    const tbody = document.getElementById('alignBody');
+    if (!filtered.length) {
+        const msg = currentAlign === 'dual_buy' ? '쌍끌이 매수 종목 없음 (5일 이상 데이터 필요)' :
+                    currentAlign === 'dual_sell' ? '쌍끌이 매도 종목 없음 (5일 이상 데이터 필요)' :
+                    '엇갈림 종목 없음';
+        tbody.innerHTML = `<tr><td colspan="7" class="empty">${msg}</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = filtered.slice(0, 30).map((s, i) => {
+        const f = s.frgn_5d_amt || 0;
+        const o = s.orgn_5d_amt || 0;
+        const total = f + o;
+        return `
+        <tr>
+            <td style="color:#667788;">${i + 1}</td>
+            <td>
+                <span class="stock-name">${esc(s.name)}</span>
+                <span class="stock-code">${esc(s.ticker)}</span>
+                <span class="stock-market">${esc(s.market)}</span>
+            </td>
+            <td style="color:#8899aa; font-size:12px;">${esc(s.sector_group || '-')}</td>
+            <td class="${f >= 0 ? 'amt-pos' : 'amt-neg'}">${f >= 0 ? '+' : ''}${f.toFixed(0)}</td>
+            <td class="${o >= 0 ? 'amt-pos' : 'amt-neg'}">${o >= 0 ? '+' : ''}${o.toFixed(0)}</td>
+            <td class="${total >= 0 ? 'amt-pos' : 'amt-neg'}">${total >= 0 ? '+' : ''}${total.toFixed(0)}</td>
+            <td>${esc(s.label)} ${esc(s.alignment)}</td>
+        </tr>`;
+    }).join('');
+}
+
 function renderTop(d) {
-    const list = currentTop === 'foreign' ? (d.foreign_top || []) : (d.institution_top || []);
+    let list;
+    if (currentTop === 'foreign') list = d.foreign_top || [];
+    else if (currentTop === 'institution') list = d.institution_top || [];
+    else list = d.stock_top_buy || [];  // combined
     const tbody = document.getElementById('topBody');
     if (!list.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty">데이터 없음</td></tr>';
