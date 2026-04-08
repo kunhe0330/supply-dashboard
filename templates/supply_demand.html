@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수급 동향 대시보드</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, 'Malgun Gothic', '맑은 고딕', sans-serif;
+    background: #0f1923;
+    color: #e0e6ed;
+    line-height: 1.55;
+}
+
+.header {
+    background: linear-gradient(135deg, #1a2634 0%, #0f1923 100%);
+    border-bottom: 1px solid #2a3a4a;
+    padding: 16px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 12px;
+}
+.header h1 { font-size: 20px; font-weight: 700; color: #fff; }
+.header h1 span { color: #4ecdc4; }
+.header-meta { font-size: 12px; color: #8899aa; margin-top: 2px; }
+
+.controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn-group { display: flex; gap: 4px; background: #15202b; border-radius: 8px; padding: 4px; }
+.btn-group button {
+    background: transparent; border: none; color: #8899aa;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: all 0.2s;
+}
+.btn-group button:hover { color: #fff; }
+.btn-group button.active { background: #4ecdc4; color: #0f1923; font-weight: 700; }
+.btn-refresh {
+    background: #2a3a4a; border: none; color: #c0c8d0;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    font-size: 13px;
+}
+.btn-refresh:hover { background: #3a4a5a; color: #fff; }
+
+.main { padding: 20px 24px 40px; max-width: 1600px; margin: 0 auto; }
+
+.section-title {
+    font-size: 15px; font-weight: 700; color: #fff;
+    margin: 24px 0 12px; display: flex; align-items: center; gap: 8px;
+}
+.section-title .sub { font-size: 11px; color: #667788; font-weight: 400; }
+
+/* 요약 카드 */
+.summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px; margin-bottom: 4px;
+}
+.summary-card {
+    background: #1a2634; border: 1px solid #2a3a4a;
+    border-radius: 12px; padding: 18px;
+}
+.summary-card .label { font-size: 12px; color: #8899aa; margin-bottom: 6px; }
+.summary-card .value { font-size: 26px; font-weight: 700; color: #fff; }
+.summary-card.positive .value { color: #ff6b6b; }
+.summary-card.negative .value { color: #4ecdc4; }
+.summary-card.yellow .value { color: #ffd93d; }
+.summary-card .sub { font-size: 11px; color: #667788; margin-top: 4px; }
+
+/* 데이터 부족 안내 */
+.data-status {
+    background: #1a2634; border: 1px solid #2a3a4a;
+    border-radius: 10px; padding: 12px 18px; font-size: 12px; color: #8899aa;
+}
+.data-status strong { color: #4ecdc4; }
+
+/* 섹터 히트맵 */
+.sector-heatmap {
+    background: #1a2634; border: 1px solid #2a3a4a;
+    border-radius: 12px; padding: 18px;
+}
+.sector-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 0; border-bottom: 1px solid #1e2d3d;
+}
+.sector-row:last-child { border-bottom: none; }
+.sector-name { width: 140px; font-size: 13px; color: #e0e6ed; font-weight: 600; }
+.sector-bar-wrap {
+    flex: 1; height: 18px; position: relative;
+    background: #0f1923; border-radius: 4px; overflow: hidden;
+}
+.sector-bar {
+    height: 100%; border-radius: 4px; transition: width 0.4s;
+}
+.sector-bar.pos { background: linear-gradient(90deg, #ff6b6b 0%, #ff9999 100%); }
+.sector-bar.neg { background: linear-gradient(90deg, #4ecdc4 0%, #7be5dc 100%); }
+.sector-amt { width: 100px; text-align: right; font-size: 13px; font-weight: 600; }
+.sector-amt.pos { color: #ff6b6b; }
+.sector-amt.neg { color: #4ecdc4; }
+.sector-label { width: 120px; font-size: 11px; color: #8899aa; }
+.sector-count { width: 60px; font-size: 11px; color: #667788; text-align: right; }
+
+/* 테이블 */
+.table-wrap {
+    background: #1a2634; border: 1px solid #2a3a4a;
+    border-radius: 12px; overflow-x: auto;
+}
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th {
+    background: #15202b; color: #8899aa;
+    font-weight: 600; padding: 12px 14px; text-align: left; white-space: nowrap;
+    border-bottom: 1px solid #2a3a4a;
+}
+tbody tr { border-bottom: 1px solid #1e2d3d; transition: background 0.15s; }
+tbody tr:hover { background: #1e2d3d; }
+tbody td { padding: 10px 14px; white-space: nowrap; }
+.stock-name { font-weight: 600; color: #fff; }
+.stock-code { font-size: 11px; color: #667788; margin-left: 6px; }
+.stock-market { font-size: 10px; color: #4a5a6a; margin-left: 4px; }
+.amt-pos { color: #ff6b6b; font-weight: 600; }
+.amt-neg { color: #4ecdc4; font-weight: 600; }
+.streak-badge {
+    display: inline-block; background: #4ecdc4; color: #0f1923;
+    font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 10px;
+}
+.mini-bar {
+    display: inline-block; height: 8px;
+    background: linear-gradient(90deg, #ff6b6b 0%, #ff9999 100%);
+    border-radius: 2px; vertical-align: middle;
+}
+.investor-tag {
+    display: inline-block; font-size: 11px; padding: 2px 8px;
+    border-radius: 4px; font-weight: 600;
+}
+.tag-both { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
+.tag-foreign { background: rgba(108, 159, 255, 0.15); color: #6c9fff; }
+.tag-institution { background: rgba(179, 136, 255, 0.15); color: #b388ff; }
+.tag-mixed { background: rgba(136, 153, 170, 0.15); color: #8899aa; }
+
+/* 전환 신호 카드 */
+.reversal-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 14px;
+}
+.reversal-card {
+    background: #1a2634; border: 1px solid #2a3a4a;
+    border-radius: 10px; padding: 16px;
+}
+.reversal-card .rv-title {
+    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 6px;
+}
+.reversal-card .rv-label { font-size: 12px; color: #ffd93d; margin-bottom: 10px; }
+.reversal-card .rv-stats { font-size: 12px; color: #c0c8d0; }
+.reversal-card .rv-stats .neg { color: #4ecdc4; }
+.reversal-card .rv-stats .pos { color: #ff6b6b; }
+
+/* 탭 */
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+.tab-btn {
+    background: #15202b; border: 1px solid #2a3a4a;
+    color: #8899aa; padding: 8px 16px; border-radius: 8px;
+    cursor: pointer; font-size: 13px;
+}
+.tab-btn.active { background: #4ecdc4; color: #0f1923; font-weight: 700; border-color: #4ecdc4; }
+
+.loading-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(15,25,35,0.8); z-index: 999;
+    justify-content: center; align-items: center;
+}
+.loading-overlay.show { display: flex; }
+.spinner {
+    width: 40px; height: 40px; border: 3px solid #2a3a4a;
+    border-top-color: #4ecdc4; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-msg {
+    background: rgba(255,107,107,0.1); border: 1px solid rgba(255,107,107,0.3);
+    color: #ff6b6b; padding: 12px 20px; border-radius: 8px;
+    margin: 16px 0; display: none;
+}
+.error-msg.show { display: block; }
+
+.footer {
+    text-align: center; padding: 20px; color: #4a5a6a;
+    font-size: 11px; border-top: 1px solid #1e2d3d; margin-top: 30px;
+}
+
+.empty {
+    padding: 30px; text-align: center; color: #667788; font-size: 13px;
+}
+
+@media (max-width: 768px) {
+    .header { padding: 12px 16px; }
+    .main { padding: 14px 12px 30px; }
+    .sector-label { display: none; }
+    .sector-name { width: 90px; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
+
+<!-- 헤더 -->
+<div class="header">
+    <div>
+        <h1>📊 수급 동향 <span>대시보드</span></h1>
+        <div class="header-meta" id="headerMeta">-</div>
+    </div>
+    <div class="controls">
+        <div class="btn-group" id="daysGroup">
+            <button data-days="5">5일</button>
+            <button data-days="10">10일</button>
+            <button data-days="20" class="active">20일</button>
+        </div>
+        <div class="btn-group" id="marketGroup">
+            <button data-market="all" class="active">전체</button>
+            <button data-market="KOSPI">코스피</button>
+            <button data-market="KOSDAQ">코스닥</button>
+        </div>
+        <button class="btn-refresh" onclick="loadData()">🔄 새로고침</button>
+        <button class="btn-refresh" onclick="manualCollect()">📥 수동 수집</button>
+    </div>
+</div>
+
+<div class="main">
+    <div class="error-msg" id="errorMsg"></div>
+
+    <!-- 데이터 상태 -->
+    <div class="data-status" id="dataStatus">로딩 중...</div>
+
+    <!-- ❶ 요약 카드 -->
+    <div class="section-title">오늘의 수급 요약</div>
+    <div class="summary-grid">
+        <div class="summary-card" id="cardForeign">
+            <div class="label">외인 순매수 (최근일)</div>
+            <div class="value">-</div>
+        </div>
+        <div class="summary-card" id="cardInstitution">
+            <div class="label">기관 순매수 (최근일)</div>
+            <div class="value">-</div>
+        </div>
+        <div class="summary-card yellow" id="cardDual">
+            <div class="label">🔥 쌍끌이 종목 수</div>
+            <div class="value">-</div>
+        </div>
+    </div>
+
+    <!-- ❷ 섹터 히트맵 -->
+    <div class="section-title">섹터 수급 <span class="sub">— 기간 합산 순매수 금액 기준</span></div>
+    <div class="sector-heatmap" id="sectorHeatmap"><div class="empty">로딩 중...</div></div>
+
+    <!-- ❸ 연속 순매수 -->
+    <div class="section-title">🔥 연속 순매수 종목 <span class="sub">— streak ≥ 3일</span></div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>종목</th>
+                    <th>섹터</th>
+                    <th>연속일</th>
+                    <th>누적금액 (억)</th>
+                    <th>일평균 (억)</th>
+                    <th>투자자</th>
+                </tr>
+            </thead>
+            <tbody id="consecutiveBody"></tbody>
+        </table>
+    </div>
+
+    <!-- ❹ 수급 전환 신호 -->
+    <div class="section-title">🔄 수급 전환 신호 <span class="sub">— 최근 3일 매수 전환 종목</span></div>
+    <div id="reversalSection" class="reversal-grid"></div>
+
+    <!-- ❺ 외인/기관 TOP 10 -->
+    <div class="section-title">투자자별 TOP 10</div>
+    <div class="tabs">
+        <button class="tab-btn active" data-top="foreign" onclick="switchTop('foreign', this)">👤 외인 순매수</button>
+        <button class="tab-btn" data-top="institution" onclick="switchTop('institution', this)">🏛 기관 순매수</button>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>종목</th>
+                    <th>섹터</th>
+                    <th>외인 (억)</th>
+                    <th>기관 (억)</th>
+                    <th>합계 (억)</th>
+                    <th>기간 평균 등락</th>
+                </tr>
+            </thead>
+            <tbody id="topBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="footer">
+    수급 동향 대시보드 · 본 데이터는 참고용이며 투자 판단의 근거가 될 수 없습니다.
+</div>
+
+<script>
+// ── 전역 상태 ──────────────────────
+let currentDays = 20;
+let currentMarket = "all";
+let currentTop = "foreign";
+let lastData = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 버튼 그룹 핸들러
+    document.querySelectorAll('#daysGroup button').forEach(b => {
+        b.addEventListener('click', () => {
+            document.querySelectorAll('#daysGroup button').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+            currentDays = parseInt(b.dataset.days);
+            loadData();
+        });
+    });
+    document.querySelectorAll('#marketGroup button').forEach(b => {
+        b.addEventListener('click', () => {
+            document.querySelectorAll('#marketGroup button').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+            currentMarket = b.dataset.market;
+            loadData();
+        });
+    });
+    loadData();
+    // 자동 새로고침 5분
+    setInterval(loadData, 5 * 60 * 1000);
+});
+
+async function loadData() {
+    const overlay = document.getElementById('loadingOverlay');
+    const err = document.getElementById('errorMsg');
+    overlay.classList.add('show');
+    err.classList.remove('show');
+    try {
+        const resp = await fetch(`/api/supply-demand?days=${currentDays}&market=${currentMarket}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        lastData = data;
+        render(data);
+    } catch (e) {
+        err.textContent = '데이터 로드 실패: ' + e.message;
+        err.classList.add('show');
+    } finally {
+        overlay.classList.remove('show');
+    }
+}
+
+async function manualCollect() {
+    if (!confirm('지금 수급 데이터를 수동 수집하시겠어요? (1일 1회만 가능)')) return;
+    try {
+        const resp = await fetch('/api/supply-demand/collect', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok) {
+            alert(`수집 완료: ${data.saved}건`);
+            loadData();
+        } else {
+            alert(data.message || '수집 실패');
+        }
+    } catch (e) {
+        alert('수집 오류: ' + e.message);
+    }
+}
+
+function render(d) {
+    // 헤더 메타
+    document.getElementById('headerMeta').textContent =
+        `마지막 수집: ${d.summary.last_biz_date || '-'} | 누적 ${d.data_days}일 / ${d.total_records}건`;
+
+    // 데이터 상태
+    renderDataStatus(d.data_days);
+
+    // 요약 카드
+    const sum = d.summary || {};
+    setCard('cardForeign', sum.foreign_total_amt, '억');
+    setCard('cardInstitution', sum.institution_total_amt, '억');
+    const dualCard = document.getElementById('cardDual');
+    dualCard.querySelector('.value').textContent = (sum.dual_buy_count ?? 0) + '개';
+
+    // 섹터 히트맵
+    renderSectorHeatmap(d.sector_summary || [], d.sector_rotation || {});
+
+    // 연속 순매수
+    renderConsecutive(d.consecutive_buy || []);
+
+    // 수급 전환
+    renderReversals(d.flow_reversals || []);
+
+    // 투자자별 TOP
+    renderTop(d);
+}
+
+function setCard(id, value, unit) {
+    const el = document.getElementById(id);
+    const v = Number(value || 0);
+    const sign = v >= 0 ? '+' : '';
+    el.querySelector('.value').textContent = sign + v.toFixed(1) + unit;
+    el.classList.remove('positive', 'negative');
+    el.classList.add(v >= 0 ? 'positive' : 'negative');
+}
+
+function renderDataStatus(days) {
+    const el = document.getElementById('dataStatus');
+    const need = [
+        { name: '연속 순매수', need: 3 },
+        { name: '외인-기관 동조', need: 5 },
+        { name: '수급 전환', need: 8 },
+        { name: '섹터 로테이션', need: 10 },
+    ];
+    const status = need.map(n => {
+        const ok = days >= n.need;
+        return `${n.name} ${ok ? '✅' : `⏳ ${n.need - days}일 후`}`;
+    }).join(' · ');
+    el.innerHTML = `📊 <strong>수집 ${days}일</strong> · ${status}`;
+}
+
+function renderSectorHeatmap(sectors, rotation) {
+    const el = document.getElementById('sectorHeatmap');
+    if (!sectors.length) {
+        el.innerHTML = '<div class="empty">섹터 데이터 없음</div>';
+        return;
+    }
+    // 라벨 매핑 (로테이션 결과)
+    const labelMap = {};
+    const allRotation = [
+        ...(rotation.rotating_in || []),
+        ...(rotation.rotating_out || []),
+        ...(rotation.steady_in || []),
+        ...(rotation.steady_out || []),
+    ];
+    allRotation.forEach(r => { labelMap[r.sector] = r.label; });
+
+    const maxAbs = Math.max(...sectors.map(s => Math.abs(s.total_net_amt || 0)), 1);
+
+    el.innerHTML = sectors.map(s => {
+        const v = s.total_net_amt || 0;
+        const pct = Math.min(100, Math.abs(v) / maxAbs * 100);
+        const cls = v >= 0 ? 'pos' : 'neg';
+        const sign = v >= 0 ? '+' : '';
+        const label = labelMap[s.sector_group] || '';
+        return `
+        <div class="sector-row">
+            <div class="sector-name">${esc(s.sector_group)}</div>
+            <div class="sector-bar-wrap">
+                <div class="sector-bar ${cls}" style="width:${pct}%"></div>
+            </div>
+            <div class="sector-amt ${cls}">${sign}${v.toFixed(0)}억</div>
+            <div class="sector-label">${label}</div>
+            <div class="sector-count">${s.stock_count}종목</div>
+        </div>`;
+    }).join('');
+}
+
+function renderConsecutive(list) {
+    const tbody = document.getElementById('consecutiveBody');
+    if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">연속 순매수 종목 없음 (3일 이상 데이터 필요)</td></tr>';
+        return;
+    }
+    const maxAvg = Math.max(...list.map(x => x.avg_daily_amt || 0), 1);
+    tbody.innerHTML = list.slice(0, 30).map((s, i) => {
+        const inv = s.investor;
+        const invLabel = inv === 'both' ? '🔥 쌍끌이' :
+                         inv === 'foreign' ? '👤 외인' :
+                         inv === 'institution' ? '🏛 기관' : '🔀 혼합';
+        const barWidth = Math.min(100, (s.avg_daily_amt || 0) / maxAvg * 100);
+        return `
+        <tr>
+            <td style="color:#667788;">${i + 1}</td>
+            <td>
+                <span class="stock-name">${esc(s.name)}</span>
+                <span class="stock-code">${esc(s.ticker)}</span>
+                <span class="stock-market">${esc(s.market)}</span>
+            </td>
+            <td style="color:#8899aa; font-size:12px;">${esc(s.sector_group || '-')}</td>
+            <td><span class="streak-badge">${s.streak_days}일</span></td>
+            <td class="amt-pos">+${s.total_net_amt.toFixed(0)}</td>
+            <td class="amt-pos">+${s.avg_daily_amt.toFixed(0)}
+                <div class="mini-bar" style="width:${barWidth}px"></div>
+            </td>
+            <td><span class="investor-tag tag-${inv}">${invLabel}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderReversals(list) {
+    const el = document.getElementById('reversalSection');
+    if (!list.length) {
+        el.innerHTML = '<div class="empty" style="grid-column:1/-1;">수급 전환 종목 없음 (8일 이상 데이터 필요)</div>';
+        return;
+    }
+    el.innerHTML = list.slice(0, 12).map(r => `
+        <div class="reversal-card">
+            <div class="rv-title">${esc(r.name)} <span class="stock-code">${esc(r.ticker)}</span></div>
+            <div class="rv-label">${esc(r.label)}</div>
+            <div class="rv-stats">
+                이전 5일: <span class="neg">${r.prev_5d_amt.toFixed(0)}억</span>
+                → 최근 3일: <span class="pos">+${r.recent_3d_amt.toFixed(0)}억</span>
+            </div>
+            <div class="rv-stats" style="margin-top:4px; font-size:11px;">
+                ${esc(r.sector_group || '')} · ${esc(r.market || '')}
+            </div>
+        </div>
+    `).join('');
+}
+
+function switchTop(type, btn) {
+    currentTop = type;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (lastData) renderTop(lastData);
+}
+
+function renderTop(d) {
+    const list = currentTop === 'foreign' ? (d.foreign_top || []) : (d.institution_top || []);
+    const tbody = document.getElementById('topBody');
+    if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">데이터 없음</td></tr>';
+        return;
+    }
+    tbody.innerHTML = list.map((s, i) => {
+        const totalNet = s.total_net_amt || 0;
+        return `
+        <tr>
+            <td style="color:#667788;">${i + 1}</td>
+            <td>
+                <span class="stock-name">${esc(s.name)}</span>
+                <span class="stock-code">${esc(s.ticker)}</span>
+                <span class="stock-market">${esc(s.market)}</span>
+            </td>
+            <td style="color:#8899aa; font-size:12px;">${esc(s.sector_group || '-')}</td>
+            <td class="${s.total_frgn_amt >= 0 ? 'amt-pos' : 'amt-neg'}">${s.total_frgn_amt >= 0 ? '+' : ''}${s.total_frgn_amt.toFixed(0)}</td>
+            <td class="${s.total_orgn_amt >= 0 ? 'amt-pos' : 'amt-neg'}">${s.total_orgn_amt >= 0 ? '+' : ''}${s.total_orgn_amt.toFixed(0)}</td>
+            <td class="${totalNet >= 0 ? 'amt-pos' : 'amt-neg'}">${totalNet >= 0 ? '+' : ''}${totalNet.toFixed(0)}</td>
+            <td>${(s.avg_change_pct || 0).toFixed(2)}%</td>
+        </tr>`;
+    }).join('');
+}
+
+function esc(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+}
+</script>
+</body>
+</html>
