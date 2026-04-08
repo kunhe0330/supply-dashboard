@@ -33,7 +33,7 @@ def load_sector_data():
         return 0, len(set(SECTOR_GROUP_MAP.values()))
 
     import pandas as pd
-    dfs = pd.read_html(_XLS_PATH, encoding="cp949")
+    dfs = pd.read_html(_XLS_PATH, encoding="cp949", flavor="html5lib")
     df = dfs[0]
     df.columns = ["회사명", "종목구분", "종목코드", "업종", "주요제품",
                   "상장일", "결산", "대표자명", "홈페이지", "지역"]
